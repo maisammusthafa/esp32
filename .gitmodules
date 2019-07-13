@@ -4,3 +4,21 @@
 [submodule "arduino"]
 	path = arduino
 	url = https://github.com/espressif/arduino-esp32
+[submodule "libraries/Adafruit_GFX"]
+	path = libraries/Adafruit_GFX
+	url = https://github.com/adafruit/Adafruit-GFX-Library
+[submodule "libraries/ArduinoJson"]
+	path = libraries/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson
+[submodule "libraries/Bounce2"]
+	path = libraries/Bounce2
+	url = https://github.com/thomasfredericks/Bounce2
+[submodule "libraries/DHTesp"]
+	path = libraries/DHTesp
+	url = https://github.com/beegee-tokyo/DHTesp
+[submodule "libraries/PubSubClient"]
+	path = libraries/PubSubClient
+	url = https://github.com/knolleary/pubsubclient
+[submodule "libraries/QuickStats"]
+	path = libraries/QuickStats
+	url = https://github.com/dndubins/QuickStats
