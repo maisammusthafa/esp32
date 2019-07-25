@@ -2,7 +2,7 @@
 	path = esp-idf
 	url = https://github.com/espressif/esp-idf
 [submodule "arduino"]
-	path = arduino
+	path = components/arduino
 	url = https://github.com/espressif/arduino-esp32
 [submodule "libraries/Adafruit_GFX"]
 	path = libraries/Adafruit_GFX
