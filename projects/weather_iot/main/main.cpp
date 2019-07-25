@@ -1,0 +1,183 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/gpio.h"
+
+#include "Arduino.h"
+#include "DHTesp.h"
+#include "Adafruit_GFX.h"
+#include "Adafruit_SSD1306.h"
+#include "Fonts/FreeSans9pt7b.h"
+
+/**
+ * Brief:
+ * This test code shows how to configure gpio and how to use gpio interrupt
+ *
+ * GPIO status:
+ * GPIO18: output
+ * GPIO19: output
+ * GPIO4:  input, pulled up, interrupt from rising edge and falling edge
+ * GPIO5:  input, pulled up, interrupt from rising edge
+ *
+ * Test:
+ * Connect GPIO18 with GPIO4
+ * Connect GPIO19 with GPIO5
+ * Generate pulses on GPIO18/19, that triggers interrupt on GPIO4/5
+ *
+ */
+
+#define GPIO_OUTPUT_IO_0    GPIO_NUM_18
+#define GPIO_OUTPUT_IO_1    GPIO_NUM_19
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<GPIO_OUTPUT_IO_0) | (1ULL<<GPIO_OUTPUT_IO_1))
+#define GPIO_INPUT_IO_0     GPIO_NUM_4
+#define GPIO_INPUT_IO_1     GPIO_NUM_5
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INPUT_IO_0) | (1ULL<<GPIO_INPUT_IO_1))
+#define ESP_INTR_FLAG_DEFAULT 0
+
+#define DHTTYPE DHT22
+#define DHTPIN GPIO_NUM_23
+#define OLED_ADDR 0x3C
+
+Adafruit_SSD1306 oled(128, 64);
+DHTesp DHT;
+
+static xQueueHandle gpio_evt_queue = NULL;
+
+String formatData(String prefix, float value, String suffix, int len = 6, int minWidth = 4, int precision = 2) {
+    char chars[len];
+    String result = prefix;
+
+    dtostrf(value, minWidth, precision, chars);
+
+    for (int i = 0; i < sizeof(chars); i++) {
+        result += chars[i];
+    }
+
+    result += suffix;
+    return result;
+}
+
+void display(int x, int y, String text, bool clear = false, bool flush = false) {
+    if (clear) { oled.clearDisplay(); }
+    oled.setCursor(x, y);
+    oled.print(text);
+    if (flush) { oled.display(); }
+}
+
+static void IRAM_ATTR gpio_isr_handler(void* arg) {
+    uint32_t gpio_num = (uint32_t) arg;
+    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+
+static void gpio_task_example(void* arg) {
+    uint32_t io_num;
+    for(;;) {
+        if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+            printf("GPIO[%d] intr, val: %d\n", io_num, gpio_get_level((gpio_num_t) io_num));
+        }
+    }
+}
+
+static void periodic_toggle(void* arg) {
+    int cnt = 0;
+
+    while(true) {
+        printf("cnt: %d\n", cnt++);
+        delay(1000);
+        digitalWrite(GPIO_OUTPUT_IO_0, cnt % 2);
+        digitalWrite(GPIO_OUTPUT_IO_1, cnt % 2);
+    }
+}
+
+static void dht_task(void* arg) {
+    int counter = 1;
+
+    while(true) {
+        TempAndHumidity newValues = DHT.getTempAndHumidity();
+
+        if (DHT.getStatus() != 0) {
+            printf(DHT.getStatusString());
+            printf("\n");
+            delay(1000);
+            continue;
+        }
+
+        float temperature = newValues.temperature;
+        float humidity = newValues.humidity;
+        float heat_index = round(DHT.computeHeatIndex(temperature, humidity) * 10) / 10.0;
+
+        printf("[%06d] Temperature: %0.2f *C      Humidity: %0.2f%%      Heat Index: %0.2f *C\n",
+            counter++, temperature, humidity, heat_index);
+
+        display(0, 14, formatData("T: ", temperature, " *C"), true, false);
+        display(0, 38, formatData("H: ", humidity, "%"), false, false);
+        display(0, 61, formatData("I:  ", heat_index, " *C"), false, true);
+
+        delay(2000);
+    }
+}
+
+extern "C" void app_main() {
+    initArduino();
+
+    DHT.setup(DHTPIN, DHTesp::DHT22);
+
+    oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+    oled.setFont(&FreeSans9pt7b);
+    oled.setTextSize(1);
+    oled.setTextColor(WHITE);
+
+    display(0, 14, "Device started.\nRunning DHT...", true, true);
+
+    gpio_config_t io_conf;
+    //disable interrupt
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    //set as output mode
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    //disable pull-down mode
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    //disable pull-up mode
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
+
+    //interrupt of rising edge
+    io_conf.intr_type = GPIO_INTR_POSEDGE;
+    //bit mask of the pins, use GPIO4/5 here
+    io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
+    //set as input mode
+    io_conf.mode = GPIO_MODE_INPUT;
+    //enable pull-up mode
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
+
+    //change gpio intrrupt type for one pin
+    gpio_set_intr_type(GPIO_INPUT_IO_0, GPIO_INTR_ANYEDGE);
+
+    //create a queue to handle gpio event from isr
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+    //start gpio task
+    //xTaskCreate(gpio_task_example, "gpio_task_example", 2048, NULL, 10, NULL);
+
+    //install gpio isr service
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void*) GPIO_INPUT_IO_0);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_INPUT_IO_1, gpio_isr_handler, (void*) GPIO_INPUT_IO_1);
+
+    //remove isr handler for gpio number
+    gpio_isr_handler_remove(GPIO_INPUT_IO_0);
+    //hook isr handler for specific gpio pin again
+    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void*) GPIO_INPUT_IO_0);
+
+    xTaskCreate(periodic_toggle, "periodic_toggle", 2048, NULL, 10, NULL);
+    xTaskCreatePinnedToCore(dht_task, "dht_task", 2048, NULL, 10, NULL, 0);
+
+    //dht_task(NULL);
+}
