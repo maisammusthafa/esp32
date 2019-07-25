@@ -28,3 +28,6 @@
 [submodule "components/mongoose"]
 	path = components/mongoose
 	url = https://github.com/cesanta/mongoose.git
+[submodule "snippets/nkolban-snippets"]
+	path = snippets/nkolban-snippets
+	url = https://github.com/nkolban/esp32-snippets.git
