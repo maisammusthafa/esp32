@@ -31,3 +31,12 @@
 [submodule "snippets/nkolban-snippets"]
 	path = snippets/nkolban-snippets
 	url = https://github.com/nkolban/esp32-snippets.git
+[submodule "libraries/blynk-library"]
+	path = libraries/blynk-library
+	url = https://github.com/blynkkk/blynk-library.git
+[submodule "libraries/Adafruit_BME280_Library"]
+	path = libraries/Adafruit_BME280_Library
+	url = https://github.com/adafruit/Adafruit_BME280_Library.git
+[submodule "libraries/Adafruit_Sensor"]
+	path = libraries/Adafruit_Sensor
+	url = https://github.com/adafruit/Adafruit_Sensor.git
