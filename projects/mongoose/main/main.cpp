@@ -9,13 +9,13 @@
 #include "mongoose.h"
 #include "sdkconfig.h"
 
-#define SSID     "***REMOVED***"
-#define PASSWORD "***REMOVED***"
+#define SSID     "SSID"
+#define PASSWORD "PASSWORD"
 
 static const char *s_address = "broker.losant.com:1883";
-static const char *s_client_id = "***REMOVED***";
-static const char *s_user_name = "***REMOVED***";
-static const char *s_password = "***REMOVED***";
+static const char *s_client_id = "CLIENT_ID";
+static const char *s_user_name = "USER_NAME";
+static const char *s_password = "PASSWORD";
 static struct mg_mqtt_topic_expression s_topic_expr = {NULL, 0};
 
 static char tag []="mongooseTests";
